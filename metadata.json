@@ -1,0 +1,5 @@
+{
+  "name": "ProfCorrector AI",
+  "description": "Uma plataforma profissional para professores criarem provas, gerarem gabaritos e corrigirem automaticamente as respostas dos alunos usando IA via foto.",
+  "requestFramePermissions": []
+}
