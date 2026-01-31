@@ -1,245 +1,125 @@
 import React, { useState, useEffect } from 'react';
+import { PenTool, Eye, Database, Plus, Camera } from 'lucide-react';
+import { Exam } from './types';
+import { getExams, saveExam } from './services/storageService';
 import { ExamBuilder } from './components/ExamBuilder';
 import { ExamPreview } from './components/ExamPreview';
 import { Grader } from './components/Grader';
-import { Exam, QuestionType } from './types';
-import { PenTool, Layout, FileCheck, Eye, Database, Trash2, PlusCircle, ScanLine } from 'lucide-react';
-import { saveExamToStorage, getExamsFromStorage, deleteExamFromStorage } from './services/storageService';
 
-// Safe ID generator compatible with all environments
-const generateId = () => Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
-
-// Empty template
-const getNewExamTemplate = (): Exam => ({
-  id: generateId(),
-  title: 'Nova Prova',
-  createdAt: Date.now(),
-  header: {
-    schoolName: '',
-    teacherName: '',
-    subject: '',
-    grade: '',
-    date: new Date().toISOString().split('T')[0],
-    instructions: '',
-    logoUrl: undefined,
-  },
-  questions: [],
-});
-
-const App: React.FC = () => {
+const App = () => {
+  const [view, setView] = useState<'list' | 'edit' | 'preview' | 'grader'>('list');
   const [exams, setExams] = useState<Exam[]>([]);
   const [currentExam, setCurrentExam] = useState<Exam | null>(null);
-  const [view, setView] = useState<'list' | 'edit' | 'preview' | 'grader'>('list');
-  const [showAnswerKeyInPreview, setShowAnswerKeyInPreview] = useState(false);
 
+  // Load initial data
   useEffect(() => {
-    refreshExams();
+    setExams(getExams());
   }, []);
 
-  const refreshExams = () => {
-    setExams(getExamsFromStorage());
-  };
-
-  const handleCreateNew = () => {
-    const newExam = getNewExamTemplate();
+  const handleCreate = () => {
+    const newExam: Exam = {
+      id: Date.now().toString(),
+      title: 'Nova Prova',
+      createdAt: Date.now(),
+      header: {
+        schoolName: '',
+        teacherName: '',
+        subject: '',
+        grade: '',
+        date: new Date().toISOString().split('T')[0],
+        instructions: ''
+      },
+      questions: []
+    };
     setCurrentExam(newExam);
     setView('edit');
   };
 
-  const handleEdit = (exam: Exam) => {
-    setCurrentExam(exam);
-    setView('edit');
-  };
-
-  const handleDelete = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (window.confirm('Tem certeza que deseja excluir esta prova?')) {
-        deleteExamFromStorage(id);
-        refreshExams();
-        if (currentExam?.id === id) {
-            setCurrentExam(null);
-            setView('list');
-        }
-    }
-  };
-
   const handleSave = () => {
     if (currentExam) {
-        saveExamToStorage(currentExam);
-        refreshExams();
-        alert("Prova salva no banco de dados!");
-        setView('list');
+      saveExam(currentExam);
+      setExams(getExams());
+      alert('Prova salva com sucesso!');
     }
   };
 
   return (
-    <div className="flex h-screen bg-slate-100 text-slate-900 font-sans overflow-hidden">
-      
-      {/* Sidebar - Navigation */}
-      <aside className="w-64 bg-slate-900 text-white flex flex-col print:hidden flex-shrink-0 z-20 shadow-xl">
-        <div className="p-6 border-b border-slate-800 bg-slate-950">
-          <div className="flex items-center gap-2 text-white font-bold text-xl tracking-tight">
-             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-900/50">
-                <PenTool size={18} />
-             </div>
-             ProfCorrector
-          </div>
-          <p className="text-slate-500 text-xs mt-2 font-medium">Gestão de Provas & Gabaritos</p>
+    <div className="h-full flex flex-col md:flex-row bg-gray-100 font-sans">
+      {/* Sidebar */}
+      <aside className="w-full md:w-64 bg-slate-900 text-white flex-shrink-0 flex flex-col print:hidden z-20 shadow-xl">
+        <div className="p-6 border-b border-slate-800">
+           <h1 className="text-xl font-bold flex items-center gap-2">
+             <PenTool className="text-brand-600" /> ProfCorrector
+           </h1>
         </div>
-
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-          <button
-            onClick={() => setView('list')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all font-medium ${
-              view === 'list' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-            }`}
-          >
-            <Database size={18} /> Banco de Provas
-          </button>
-          
-          <button
-            onClick={handleCreateNew}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all font-medium ${
-              view === 'edit' && !currentExam?.questions.length ? 'bg-blue-600 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-            }`}
-          >
-            <PlusCircle size={18} /> Criar Nova Prova
-          </button>
-
-          {currentExam && (
-            <div className="mt-6 pt-6 border-t border-slate-800">
-                <div className="px-4 mb-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Prova Atual</div>
-                <div className="px-4 mb-4 text-sm font-bold text-white truncate opacity-80">{currentExam.title}</div>
-                
-                <button
-                    onClick={() => setView('edit')}
-                    className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-colors ${
-                    view === 'edit' ? 'text-blue-400 bg-blue-400/10' : 'text-slate-400 hover:text-white'
-                    }`}
-                >
-                    <Layout size={16} /> Editar Questões
+        
+        <nav className="flex-1 p-4 space-y-2">
+           <button onClick={() => setView('list')} className={`w-full text-left px-4 py-3 rounded flex items-center gap-3 ${view === 'list' ? 'bg-brand-600' : 'hover:bg-slate-800'}`}>
+              <Database size={18} /> Minhas Provas
+           </button>
+           <button onClick={() => setView('grader')} className={`w-full text-left px-4 py-3 rounded flex items-center gap-3 ${view === 'grader' ? 'bg-brand-600' : 'hover:bg-slate-800'}`}>
+              <Camera size={18} /> Corretor IA
+           </button>
+           
+           {currentExam && (
+             <div className="mt-8 pt-4 border-t border-slate-700">
+                <p className="text-xs text-slate-500 uppercase font-bold mb-2 px-4">Editando Agora</p>
+                <div className="px-4 mb-3 truncate font-medium text-slate-300">{currentExam.title}</div>
+                <button onClick={() => setView('edit')} className={`w-full text-left px-4 py-2 rounded text-sm flex items-center gap-2 ${view === 'edit' ? 'text-brand-400 bg-slate-800' : 'text-slate-400'}`}>
+                    Editar Questões
                 </button>
-                <button
-                    onClick={() => { setView('preview'); setShowAnswerKeyInPreview(false); }}
-                    className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-colors ${
-                    view === 'preview' && !showAnswerKeyInPreview ? 'text-blue-400 bg-blue-400/10' : 'text-slate-400 hover:text-white'
-                    }`}
-                >
-                    <Eye size={16} /> Imprimir Prova
+                <button onClick={() => setView('preview')} className={`w-full text-left px-4 py-2 rounded text-sm flex items-center gap-2 ${view === 'preview' ? 'text-brand-400 bg-slate-800' : 'text-slate-400'}`}>
+                    Imprimir / Visualizar
                 </button>
-                <button
-                    onClick={() => { setView('preview'); setShowAnswerKeyInPreview(true); }}
-                    className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-colors ${
-                    view === 'preview' && showAnswerKeyInPreview ? 'text-blue-400 bg-blue-400/10' : 'text-slate-400 hover:text-white'
-                    }`}
-                >
-                    <FileCheck size={16} /> Ver Gabarito
-                </button>
-            </div>
-          )}
-
-          <div className="mt-6 pt-6 border-t border-slate-800">
-             <button
-                onClick={() => setView('grader')}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors font-bold ${
-                view === 'grader' ? 'bg-teal-600 text-white shadow-lg' : 'text-teal-400 hover:bg-slate-800 hover:text-teal-300'
-                }`}
-            >
-                <ScanLine size={18} /> Leitor de Gabarito
-            </button>
-          </div>
+             </div>
+           )}
         </nav>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 overflow-hidden relative flex flex-col h-full w-full">
-        {view === 'list' && (
-             <div className="h-full overflow-hidden flex flex-col">
-                <header className="h-20 bg-white border-b border-slate-200 flex items-center px-10 justify-between flex-shrink-0">
-                    <div>
-                        <h1 className="text-2xl font-bold text-slate-800">Banco de Provas</h1>
-                        <p className="text-sm text-slate-500">Gerencie suas avaliações salvas</p>
-                    </div>
-                    <button onClick={handleCreateNew} className="bg-blue-600 text-white px-6 py-2.5 rounded-lg font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all flex items-center gap-2">
-                        <PlusCircle size={20} /> Nova Prova
-                    </button>
-                </header>
-                <div className="flex-1 overflow-y-auto p-10">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {exams.length === 0 && (
-                            <div className="col-span-full text-center py-20 text-slate-400 border-2 border-dashed border-slate-300 rounded-xl">
-                                <Database size={48} className="mx-auto mb-4 opacity-30" />
-                                <p className="text-lg">Nenhuma prova criada ainda.</p>
-                            </div>
-                        )}
-                        {exams.map(exam => (
-                            <div key={exam.id} 
-                                onClick={() => handleEdit(exam)}
-                                className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 hover:shadow-md hover:border-blue-300 transition-all cursor-pointer group relative"
-                            >
-                                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button 
-                                        onClick={(e) => handleDelete(exam.id, e)}
-                                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full"
-                                    >
-                                        <Trash2 size={18} />
-                                    </button>
-                                </div>
-                                <h3 className="font-bold text-lg text-slate-800 mb-2 pr-8">{exam.title}</h3>
-                                <div className="space-y-1 text-sm text-slate-500 mb-4">
-                                    <p>Disciplina: {exam.header.subject || 'Não definida'}</p>
-                                    <p>Questões: {exam.questions.length}</p>
-                                    <p>Data: {new Date(exam.createdAt).toLocaleDateString('pt-BR')}</p>
-                                </div>
-                                <div className="flex gap-2 mt-4 pt-4 border-t border-slate-100">
-                                    <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                                        Editar
-                                    </span>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-             </div>
-        )}
-
-        {view === 'edit' && currentExam && (
-           <div className="h-full overflow-hidden flex flex-col">
-              <header className="h-16 bg-white border-b border-slate-200 flex items-center px-8 justify-between flex-shrink-0">
-                 <h1 className="text-xl font-bold text-slate-800">Editor de Prova: {currentExam.title}</h1>
-              </header>
-              <div className="flex-1 overflow-hidden p-8">
-                 <ExamBuilder 
-                    currentExam={currentExam} 
-                    onUpdateExam={setCurrentExam} 
-                    onSave={handleSave}
-                 />
+      {/* Main Content */}
+      <main className="flex-1 overflow-hidden relative w-full h-full">
+         {view === 'list' && (
+           <div className="p-8 h-full overflow-y-auto">
+              <div className="flex justify-between items-center mb-8">
+                 <h2 className="text-2xl font-bold text-gray-800">Banco de Provas</h2>
+                 <button onClick={handleCreate} className="bg-brand-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-brand-700 shadow-lg">
+                    <Plus size={20} /> Criar Nova
+                 </button>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                 {exams.map(e => (
+                   <div key={e.id} onClick={() => { setCurrentExam(e); setView('edit'); }} className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:border-brand-300 cursor-pointer transition-all hover:shadow-md">
+                      <h3 className="font-bold text-lg text-gray-800 mb-2">{e.title}</h3>
+                      <div className="text-sm text-gray-500 space-y-1">
+                        <p>{e.header.schoolName || 'Sem escola definida'}</p>
+                        <p>{e.questions.length} questões</p>
+                        <p className="text-xs mt-4 pt-2 border-t text-gray-400">Criado em: {new Date(e.createdAt).toLocaleDateString()}</p>
+                      </div>
+                   </div>
+                 ))}
+                 {exams.length === 0 && (
+                   <div className="col-span-full text-center py-20 bg-white rounded-xl border-2 border-dashed border-gray-300">
+                      <p className="text-gray-400 mb-4">Você ainda não criou nenhuma prova.</p>
+                      <button onClick={handleCreate} className="text-brand-600 font-bold hover:underline">Começar Agora</button>
+                   </div>
+                 )}
               </div>
            </div>
-        )}
+         )}
 
-        {view === 'preview' && currentExam && (
-            <div className="h-full overflow-y-auto bg-slate-200/50">
-               <ExamPreview 
-                 exam={currentExam} 
-                 onBack={() => setView('edit')} 
-                 showAnswerKey={showAnswerKeyInPreview} 
-               />
-            </div>
-        )}
+         {view === 'edit' && currentExam && (
+            <ExamBuilder exam={currentExam} setExam={setCurrentExam} onSave={handleSave} />
+         )}
 
-        {view === 'grader' && (
-            <div className="h-full overflow-hidden flex flex-col">
-               <header className="h-16 bg-white border-b border-slate-200 flex items-center px-8 justify-between flex-shrink-0">
-                 <h1 className="text-xl font-bold text-slate-800">Leitor Óptico de Gabaritos</h1>
-              </header>
-              <div className="flex-1 overflow-y-auto p-8">
-                 <Grader />
-              </div>
-            </div>
-        )}
+         {view === 'preview' && currentExam && (
+            <ExamPreview exam={currentExam} onBack={() => setView('edit')} />
+         )}
+
+         {view === 'grader' && (
+            <Grader exams={exams} />
+         )}
       </main>
-
     </div>
   );
 };

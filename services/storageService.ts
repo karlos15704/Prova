@@ -1,31 +1,28 @@
 import { Exam } from '../types';
 
-const STORAGE_KEY = 'profcorrector_exams';
+const KEY = 'PROFCORRECTOR_DATA_V2';
 
-export const saveExamToStorage = (exam: Exam): void => {
-  const existing = getExamsFromStorage();
-  const index = existing.findIndex(e => e.id === exam.id);
-  
-  if (index >= 0) {
-    existing[index] = exam;
-  } else {
-    existing.push(exam);
+export const getExams = (): Exam[] => {
+  try {
+    const data = localStorage.getItem(KEY);
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
   }
-  
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
 };
 
-export const getExamsFromStorage = (): Exam[] => {
-  const data = localStorage.getItem(STORAGE_KEY);
-  return data ? JSON.parse(data) : [];
+export const saveExam = (exam: Exam) => {
+  const exams = getExams();
+  const index = exams.findIndex(e => e.id === exam.id);
+  if (index >= 0) {
+    exams[index] = exam;
+  } else {
+    exams.push(exam);
+  }
+  localStorage.setItem(KEY, JSON.stringify(exams));
 };
 
-export const getExamById = (id: string): Exam | undefined => {
-  const exams = getExamsFromStorage();
-  return exams.find(e => e.id === id);
-};
-
-export const deleteExamFromStorage = (id: string): void => {
-  const exams = getExamsFromStorage().filter(e => e.id !== id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(exams));
+export const deleteExam = (id: string) => {
+  const exams = getExams().filter(e => e.id !== id);
+  localStorage.setItem(KEY, JSON.stringify(exams));
 };

@@ -6,29 +6,42 @@
     <title>ProfCorrector AI</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-      // Polyfill for process.env
+      // Shim para garantir que process.env exista (evita crash ao acessar API Key)
       window.process = window.process || { env: {} };
       
-      // Tailwind config
       tailwind.config = {
         theme: {
           extend: {
             colors: {
-              primary: '#0f172a', // Slate 900
-              secondary: '#334155', // Slate 700
-              accent: '#2563eb', // Blue 600
+              brand: {
+                50: '#eff6ff',
+                100: '#dbeafe',
+                600: '#2563eb',
+                700: '#1d4ed8',
+                900: '#1e3a8a',
+              }
             }
           }
         }
       }
     </script>
     <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+      
+      body {
+        font-family: 'Inter', sans-serif;
+      }
+
+      /* Estilos específicos para impressão (A4) */
       @media print {
         @page {
-          margin: 1.5cm;
+          size: A4;
+          margin: 10mm;
         }
         body {
           -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+          background: white !important;
         }
         .no-print {
           display: none !important;
@@ -36,17 +49,23 @@
         .print-only {
           display: block !important;
         }
+        .page-break {
+          page-break-before: always;
+        }
+        .avoid-break {
+          page-break-inside: avoid;
+        }
       }
     </style>
-    <!-- Robust Import Map using ?dev for better compatibility in this environment -->
+    
+    <!-- Mapeamento de Importação estrito para evitar conflitos de versão do React -->
     <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@18.2.0?dev",
-    "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime?dev",
-    "react-dom": "https://esm.sh/react-dom@18.2.0?dev",
-    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client?dev",
-    "lucide-react": "https://esm.sh/lucide-react@0.344.0?dev",
+    "react": "https://esm.sh/react@18.2.0",
+    "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "lucide-react": "https://esm.sh/lucide-react@0.344.0",
     "@google/genai": "https://esm.sh/@google/genai@0.2.1",
     "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
     "react/": "https://esm.sh/react@^19.2.4/"
@@ -54,43 +73,43 @@
 }
 </script>
   </head>
-  <body class="bg-gray-50 text-slate-900 font-sans antialiased">
-    <div id="root" class="flex items-center justify-center h-screen text-slate-500">
-        <div id="loading-spinner" class="text-center">
-            <svg class="animate-spin h-10 w-10 text-blue-600 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+  <body class="bg-gray-100 text-slate-900 h-screen overflow-hidden">
+    <div id="root" class="h-full flex flex-col">
+        <!-- Spinner de carregamento inicial -->
+        <div class="flex-1 flex items-center justify-center flex-col gap-4 text-brand-600">
+            <svg class="animate-spin h-10 w-10" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <p class="text-lg font-medium">Carregando ProfCorrector...</p>
+            <span class="font-medium">Iniciando Sistema...</span>
         </div>
     </div>
 
-    <!-- Error Handler Script -->
+    <!-- Tratamento de Erro Global -->
     <script>
-      window.addEventListener('error', function(event) {
-        const root = document.getElementById('root');
-        const spinner = document.getElementById('loading-spinner');
-        if (spinner) spinner.style.display = 'none';
-        
-        if (root) {
-            // Check if it's a ResizeObserver loop limit exceeded error, which is harmless
-            if (event.message && event.message.includes('ResizeObserver')) return;
+      window.addEventListener('error', (e) => {
+        // Ignora erros de ResizeObserver que são inofensivos
+        if (e.message && e.message.includes('ResizeObserver')) return;
 
+        const root = document.getElementById('root');
+        if (root) {
             root.innerHTML = `
-                <div style="padding: 2rem; max-width: 600px; margin: 0 auto; text-align: center; color: #ef4444;">
-                    <h2 style="font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem;">Erro ao Carregar Aplicação</h2>
-                    <p style="margin-bottom: 1rem;">Ocorreu um erro ao iniciar o sistema.</p>
-                    <div style="background: #fee2e2; padding: 1rem; border-radius: 0.5rem; font-family: monospace; text-align: left; overflow: auto;">
-                        ${event.message}
+                <div class="h-full flex items-center justify-center p-4">
+                    <div class="bg-white p-6 rounded-lg shadow-xl max-w-md w-full border-l-4 border-red-500">
+                        <h2 class="text-xl font-bold text-red-600 mb-2">Erro de Inicialização</h2>
+                        <p class="text-gray-600 mb-4">Ocorreu um problema ao carregar a aplicação.</p>
+                        <div class="bg-gray-100 p-3 rounded text-xs font-mono overflow-auto mb-4 text-red-800">
+                            ${e.message}
+                        </div>
+                        <button onclick="window.location.reload()" class="w-full bg-red-600 text-white py-2 rounded font-bold hover:bg-red-700">
+                            Tentar Novamente
+                        </button>
                     </div>
-                    <p style="margin-top: 1rem; font-size: 0.875rem; color: #64748b;">Tente recarregar a página.</p>
                 </div>
             `;
         }
-        console.error("App Crash:", event.error);
       });
     </script>
-
     <script type="module" src="./index.tsx"></script>
   </body>
 </html>

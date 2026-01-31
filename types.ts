@@ -1,16 +1,9 @@
-export enum QuestionType {
-  MULTIPLE_CHOICE = 'MULTIPLE_CHOICE',
-  // Keeping OPEN as a fallback, but UI focuses on MC for scantron
-  OPEN = 'OPEN' 
-}
-
 export interface Question {
   id: string;
   text: string;
-  imageUrl?: string; // Base64 or URL
-  type: QuestionType;
-  options: string[]; // Dynamic array for variable number of options
-  correctAnswer: string; // The letter (A, B...)
+  imageUrl?: string;
+  options: string[];
+  correctAnswer: string; // "A", "B", "C", etc.
   points: number;
 }
 
@@ -18,23 +11,17 @@ export interface ExamHeader {
   schoolName: string;
   teacherName: string;
   subject: string;
-  grade: string;
+  grade: string; // Turma
   date: string;
   instructions: string;
-  logoUrl?: string;
 }
 
 export interface Exam {
   id: string;
-  title: string; // Internal title for the DB
+  title: string;
   createdAt: number;
   header: ExamHeader;
   questions: Question[];
-}
-
-export interface ScantronResult {
-  studentName: string;
-  answers: { questionIndex: number; selectedLetter: string }[];
 }
 
 export interface GradingResult {
@@ -42,11 +29,9 @@ export interface GradingResult {
   totalScore: number;
   maxScore: number;
   matches: {
-    questionId: string;
-    questionNumber: number;
+    questionIndex: number; // 1-based
     correctLetter: string;
-    studentLetter: string;
+    studentLetter: string; // "A", "B" or "BRANCO"/"ANULADA"
     isCorrect: boolean;
-    points: number;
   }[];
 }

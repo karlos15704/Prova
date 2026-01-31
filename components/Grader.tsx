@@ -1,198 +1,124 @@
-import React, { useState, useRef } from 'react';
-import { Loader2, CheckCircle, AlertCircle, FileCheck, Camera, ScanLine, Info } from 'lucide-react';
+import React, { useState } from 'react';
 import { Exam, GradingResult } from '../types';
-import { gradeScantron } from '../services/geminiService';
-import { getExamsFromStorage } from '../services/storageService';
+import { Camera, Upload, CheckCircle, XCircle, Loader2, RefreshCw } from 'lucide-react';
+import { gradeExamImage } from '../services/geminiService';
 
-export const Grader: React.FC = () => {
-  const [selectedExamId, setSelectedExamId] = useState<string>('');
-  const [file, setFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [isGrading, setIsGrading] = useState(false);
+interface Props {
+  exams: Exam[];
+}
+
+export const Grader: React.FC<Props> = ({ exams }) => {
+  const [selectedExamId, setSelectedExamId] = useState('');
+  const [image, setImage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<GradingResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const savedExams = getExamsFromStorage();
-  const selectedExam = savedExams.find(e => e.id === selectedExamId);
+  const selectedExam = exams.find(e => e.id === selectedExamId);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0];
-      setFile(selectedFile);
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.[0]) {
+      const reader = new FileReader();
+      reader.onload = (ev) => setImage(ev.target?.result as string);
+      reader.readAsDataURL(e.target.files[0]);
       setResult(null);
       setError(null);
-
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        setImagePreview(ev.target?.result as string);
-      };
-      reader.readAsDataURL(selectedFile);
     }
   };
 
-  const handleGrade = async () => {
-    if (!imagePreview || !selectedExam) return;
-
-    setIsGrading(true);
+  const processImage = async () => {
+    if (!image || !selectedExam) return;
+    setLoading(true);
     setError(null);
-    setResult(null);
-
+    
     try {
-      const base64Data = imagePreview.split(',')[1];
-      const gradingResult = await gradeScantron(selectedExam, base64Data);
-      setResult(gradingResult);
-    } catch (err) {
-      setError("Não foi possível ler o gabarito. Tente aproximar a câmera apenas da área das bolinhas e certifique-se que a imagem está nítida.");
-      console.error(err);
+      const base64 = image.split(',')[1];
+      const res = await gradeExamImage(selectedExam, base64);
+      setResult(res);
+    } catch (err: any) {
+      setError(err.message || "Erro desconhecido");
     } finally {
-      setIsGrading(false);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="max-w-5xl mx-auto h-full flex flex-col gap-6">
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-        <h2 className="text-xl font-bold text-slate-800 mb-6 flex items-center gap-2">
-          <ScanLine className="text-accent" /> Leitura Óptica de Gabarito
-        </h2>
+    <div className="p-8 max-w-6xl mx-auto h-full overflow-y-auto">
+      <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+        <Camera className="text-brand-600" /> Corretor Automático
+      </h2>
 
-        {savedExams.length === 0 ? (
-           <div className="text-center p-10 bg-slate-50 rounded-lg border border-dashed border-slate-300">
-              <p className="text-slate-500">Nenhuma prova encontrada no banco de dados.</p>
-              <p className="text-sm text-slate-400">Crie e salve uma prova primeiro.</p>
-           </div>
-        ) : (
-            <div className="grid md:grid-cols-2 gap-8">
-            {/* Left Column: Input */}
-            <div className="space-y-6">
-                <div>
-                    <label className="block text-sm font-bold text-slate-700 mb-2">Selecione a Prova para Corrigir</label>
-                    <select 
-                        value={selectedExamId}
-                        onChange={(e) => { setSelectedExamId(e.target.value); setResult(null); }}
-                        className="w-full p-3 bg-white border border-slate-300 rounded-lg focus:ring-accent focus:border-accent shadow-sm"
-                    >
-                        <option value="">-- Selecione --</option>
-                        {savedExams.map(exam => (
-                            <option key={exam.id} value={exam.id}>
-                                {exam.title} ({exam.questions.length} questões)
-                            </option>
-                        ))}
-                    </select>
-                </div>
+      <div className="grid md:grid-cols-2 gap-8">
+        <div className="space-y-6">
+          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <label className="block text-sm font-bold text-gray-700 mb-2">Selecione o Gabarito (Prova)</label>
+            <select 
+              className="w-full p-2 border rounded-md mb-4"
+              value={selectedExamId}
+              onChange={e => { setSelectedExamId(e.target.value); setResult(null); }}
+            >
+              <option value="">-- Selecione uma prova --</option>
+              {exams.map(e => (
+                <option key={e.id} value={e.id}>{e.title}</option>
+              ))}
+            </select>
 
-                <div className={`transition-opacity ${!selectedExamId ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
-                    <div 
-                        onClick={() => fileInputRef.current?.click()}
-                        className={`border-2 border-dashed rounded-xl h-64 flex flex-col items-center justify-center cursor-pointer transition-all overflow-hidden relative ${
-                            imagePreview ? 'border-accent bg-blue-50' : 'border-slate-300 hover:border-slate-400 hover:bg-slate-50'
-                        }`}
-                    >
-                        {imagePreview ? (
-                            <img src={imagePreview} alt="Preview" className="h-full w-full object-contain" />
-                        ) : (
-                            <div className="text-center p-4">
-                            <div className="bg-white p-3 rounded-full shadow-sm inline-block mb-3">
-                                <Camera className="w-8 h-8 text-accent" />
-                            </div>
-                            <p className="text-sm font-medium text-slate-700">Clique para enviar foto</p>
-                            <p className="text-xs text-slate-400 mt-1">Fotografe a Folha de Respostas (Última Página)</p>
-                            </div>
-                        )}
-                        <input 
-                            type="file" 
-                            ref={fileInputRef} 
-                            onChange={handleFileChange} 
-                            className="hidden" 
-                            accept="image/*" 
-                        />
-                    </div>
-
-                    <div className="mt-2 bg-blue-50 p-3 rounded-lg text-xs text-blue-800 flex gap-2">
-                        <Info size={16} className="flex-shrink-0" />
-                        <p>Dica: Fotografe o quadro de respostas de frente, com boa iluminação. Evite sombras sobre as bolinhas.</p>
-                    </div>
-
-                    <button
-                        onClick={handleGrade}
-                        disabled={!file || isGrading || !selectedExam}
-                        className={`w-full mt-4 py-4 rounded-lg font-bold text-white flex items-center justify-center gap-2 shadow-lg transition-all ${
-                            !file || isGrading || !selectedExam
-                            ? 'bg-slate-300 cursor-not-allowed shadow-none' 
-                            : 'bg-slate-900 hover:bg-black shadow-slate-900/30'
-                        }`}
-                    >
-                        {isGrading ? (
-                            <>
-                            <Loader2 className="animate-spin" /> Processando Imagem...
-                            </>
-                        ) : (
-                            <>
-                            <ScanLine /> Ler Gabarito
-                            </>
-                        )}
-                    </button>
-                    
-                    {error && (
-                    <div className="mt-4 p-3 bg-red-50 text-red-700 text-sm rounded-lg flex items-center gap-2">
-                        <AlertCircle size={16} /> {error}
-                    </div>
-                    )}
-                </div>
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-gray-50 hover:bg-white transition-colors relative">
+               {image ? (
+                 <img src={image} className="max-h-64 mx-auto object-contain" />
+               ) : (
+                 <div className="py-8">
+                    <Upload className="mx-auto text-gray-400 mb-2" size={48} />
+                    <p className="text-gray-500 font-medium">Clique para enviar foto do gabarito</p>
+                    <p className="text-xs text-gray-400">Formatos: JPG, PNG</p>
+                 </div>
+               )}
+               <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" onChange={handleFile} />
             </div>
 
-            {/* Right Column: Results */}
-            <div className="bg-slate-50 rounded-xl border border-slate-200 p-6 min-h-[300px]">
-                {!result && !isGrading && (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-400 text-center">
-                    <ScanLine size={48} className="mb-4 opacity-20" />
-                    <p>O resultado da correção aparecerá aqui.</p>
-                    </div>
-                )}
-                
-                {isGrading && (
-                    <div className="h-full flex flex-col items-center justify-center space-y-4">
-                    <div className="w-12 h-12 border-4 border-slate-200 border-t-accent rounded-full animate-spin"></div>
-                    <p className="text-sm text-slate-500 animate-pulse">Lendo marcações ópticas...</p>
-                    </div>
-                )}
+            <button
+              onClick={processImage}
+              disabled={!image || !selectedExamId || loading}
+              className={`w-full mt-4 py-3 rounded-lg font-bold flex items-center justify-center gap-2 text-white ${!image || !selectedExamId ? 'bg-gray-300' : 'bg-brand-600 hover:bg-brand-700'}`}
+            >
+              {loading ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+              {loading ? 'Corrigindo...' : 'Corrigir Agora'}
+            </button>
+            {error && <p className="mt-2 text-red-500 text-sm text-center">{error}</p>}
+          </div>
+        </div>
 
-                {result && (
-                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <div className="flex justify-between items-start border-b border-slate-200 pb-4 mb-4">
-                    <div>
-                        <span className="text-xs text-slate-500 uppercase font-bold tracking-wider">Aluno(a)</span>
-                        <h3 className="text-xl font-bold text-slate-900">{result.studentName}</h3>
-                    </div>
-                    <div className="text-right">
-                        <span className="text-xs text-slate-500 uppercase font-bold tracking-wider">Nota</span>
-                        <div className={`text-4xl font-black ${result.totalScore >= result.maxScore * 0.6 ? 'text-green-600' : 'text-red-500'}`}>
-                        {result.totalScore} <span className="text-lg text-slate-400 font-medium">/ {result.maxScore}</span>
-                        </div>
-                    </div>
-                    </div>
+        <div>
+          {result ? (
+            <div className="bg-white p-6 rounded-lg shadow-lg border border-brand-100 animate-in fade-in slide-in-from-bottom-4">
+               <div className="text-center mb-6 border-b pb-4">
+                  <p className="text-sm text-gray-500 uppercase tracking-wide">Resultado da Correção</p>
+                  <h3 className="text-2xl font-black text-gray-800">{result.studentName}</h3>
+                  <div className="mt-2 inline-block bg-brand-50 px-4 py-1 rounded-full text-brand-700 font-bold text-xl">
+                    Nota: {result.totalScore} <span className="text-sm font-normal">/ {result.maxScore}</span>
+                  </div>
+               </div>
 
-                    <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-[400px] overflow-y-auto pr-2">
-                    {result.matches.map((q) => (
-                        <div key={q.questionId} className={`p-2 rounded border flex flex-col items-center justify-center text-center ${q.isCorrect ? 'bg-green-100 border-green-300 text-green-900' : 'bg-red-50 border-red-200 text-red-900'}`}>
-                            <span className="text-xs font-bold text-slate-500 mb-1">#{q.questionNumber}</span>
-                            <div className="font-mono text-lg font-black">{q.studentLetter}</div>
-                            {!q.isCorrect && (
-                                <div className="text-[10px] text-red-500 font-bold mt-1">Gab: {q.correctLetter}</div>
-                            )}
-                        </div>
-                    ))}
+               <div className="grid grid-cols-4 gap-2">
+                  {result.matches.map((m) => (
+                    <div key={m.questionIndex} className={`p-2 rounded border text-center ${m.isCorrect ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+                       <div className="text-xs text-gray-500 font-bold">Q{m.questionIndex}</div>
+                       <div className={`font-black text-lg ${m.isCorrect ? 'text-green-700' : 'text-red-700'}`}>
+                         {m.studentLetter}
+                       </div>
+                       {!m.isCorrect && (
+                         <div className="text-[10px] text-gray-400">Gab: {m.correctLetter}</div>
+                       )}
                     </div>
-                    
-                    <div className="mt-4 pt-4 border-t border-slate-200 text-xs text-slate-500 text-center">
-                        Acertos: {result.matches.filter(m => m.isCorrect).length} de {result.matches.length}
-                    </div>
-                </div>
-                )}
+                  ))}
+               </div>
             </div>
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-200 rounded-lg bg-gray-50/50">
+               <p>O resultado aparecerá aqui</p>
             </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

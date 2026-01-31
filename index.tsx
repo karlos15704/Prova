@@ -11,6 +11,4 @@ if (container) {
       <App />
     </React.StrictMode>
   );
-} else {
-  console.error("Failed to find the root element");
 }

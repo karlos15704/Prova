@@ -1,51 +1,39 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { Exam, GradingResult, ScantronResult } from '../types';
+import { Exam, GradingResult } from '../types';
 
-const VISION_MODEL = "gemini-3-pro-image-preview";
+export const gradeExamImage = async (exam: Exam, base64Image: string): Promise<GradingResult> => {
+  // Inicialização segura
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) throw new Error("API Key não encontrada");
+  
+  const ai = new GoogleGenAI({ apiKey });
 
-export const gradeScantron = async (
-  exam: Exam,
-  imageBase64: string
-): Promise<GradingResult> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-  // We only need the number of questions to tell the AI what to look for
   const questionCount = exam.questions.length;
-
+  
+  // Prompt super específico para evitar alucinações
   const systemPrompt = `
-    VOCÊ É UM CORRETOR DE GABARITOS (OMR).
-    Sua tarefa é analisar a imagem de uma Folha de Respostas e identificar quais letras foram marcadas.
-
-    INSTRUÇÕES VISUAIS:
-    1. Procure pela grade de respostas numerada de 1 a ${questionCount}.
-    2. Para cada número, verifique as opções (A, B, C, D...).
-    3. Uma opção é considerada "MARCADA" se a bolinha estiver totalmente preenchida (pintada) ou marcada com um X forte.
-    4. Se a bolinha estiver vazia ou apenas com um ponto pequeno, é "NÃO MARCADA".
+    Você é um scanner de gabaritos ópticos (OMR) de alta precisão.
+    Sua tarefa é extrair as respostas marcadas em uma folha de respostas.
     
-    REGRAS DE EXTRAÇÃO:
-    - Retorne a letra selecionada para cada questão.
-    - Se houver duas marcações na mesma linha: retorne "ANULADA".
-    - Se não houver marcação: retorne "BRANCO".
-    - Tente identificar o nome do aluno no cabeçalho (escrito à mão ou impresso).
+    Parâmetros:
+    - Total de questões: ${questionCount}.
+    - Opções possíveis: A, B, C, D, E.
     
-    FORMATO DE RESPOSTA:
-    Retorne APENAS um objeto JSON válido. Não use blocos de código markdown (\`\`\`json).
+    Regras de Leitura:
+    1. Localize a grade de respostas numerada de 1 a ${questionCount}.
+    2. Identifique qual bolinha/letra está preenchida (pintada) ou marcada com um X forte.
+    3. Se houver mais de uma marcação na mesma linha -> Retorne "ANULADA".
+    4. Se não houver marcação -> Retorne "BRANCO".
+    5. Tente ler o nome do aluno escrito no cabeçalho. Se ilegível, retorne "Aluno Não Identificado".
   `;
 
   try {
     const response = await ai.models.generateContent({
-      model: VISION_MODEL,
+      model: "gemini-3-pro-image-preview",
       contents: {
         parts: [
-          {
-            inlineData: {
-              mimeType: "image/jpeg",
-              data: imageBase64
-            }
-          },
-          {
-            text: `Analise esta folha de respostas. Existem ${questionCount} questões. Identifique a alternativa correta para cada uma.`
-          }
+          { inlineData: { mimeType: "image/jpeg", data: base64Image } },
+          { text: `Analise a imagem. Extraia o nome do aluno e as respostas para as questões de 1 a ${questionCount}.` }
         ]
       },
       config: {
@@ -54,15 +42,14 @@ export const gradeScantron = async (
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            studentName: { type: Type.STRING, description: "Nome do aluno identificado" },
+            studentName: { type: Type.STRING },
             answers: {
               type: Type.ARRAY,
-              description: "Lista de respostas",
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  questionIndex: { type: Type.INTEGER, description: "Número da questão" },
-                  selectedLetter: { type: Type.STRING, description: "Letra marcada (A, B, C, D, ANULADA, BRANCO)" }
+                  qNum: { type: Type.INTEGER, description: "Número da questão" },
+                  selected: { type: Type.STRING, description: "Letra selecionada (A,B,C,D,E, BRANCO, ANULADA)" }
                 }
               }
             }
@@ -71,60 +58,40 @@ export const gradeScantron = async (
       }
     });
 
-    if (!response.text) {
-      throw new Error("A IA não retornou nenhum texto.");
-    }
+    // Parse da resposta
+    const data = JSON.parse(response.text || "{}");
+    const extractedAnswers = data.answers || [];
 
-    // SANITIZATION: Remove markdown code blocks if present (Common cause of JSON parse errors)
-    let cleanJson = response.text.trim();
-    if (cleanJson.startsWith('```json')) {
-      cleanJson = cleanJson.replace(/^```json/, '').replace(/```$/, '');
-    } else if (cleanJson.startsWith('```')) {
-      cleanJson = cleanJson.replace(/^```/, '').replace(/```$/, '');
-    }
-
-    let extraction: ScantronResult;
-    try {
-        extraction = JSON.parse(cleanJson) as ScantronResult;
-    } catch (e) {
-        console.error("Erro ao fazer parse do JSON bruto:", cleanJson);
-        throw new Error("Falha ao processar os dados retornados pela IA.");
-    }
-
-    // Now perform the deterministic grading locally
+    // Comparação determinística (Gabarito Oficial vs Resposta do Aluno)
     let totalScore = 0;
-    const maxScore = exam.questions.reduce((sum, q) => sum + q.points, 0);
+    const maxScore = exam.questions.reduce((acc, q) => acc + q.points, 0);
 
-    const matches = exam.questions.map((question, index) => {
-      // Find the answer for this question number (index + 1)
-      const studentAns = extraction.answers.find(a => a.questionIndex === (index + 1));
-      const studentLetter = studentAns ? studentAns.selectedLetter.toUpperCase() : "BRANCO";
-      const correctLetter = question.correctAnswer.toUpperCase();
+    const matches = exam.questions.map((q, idx) => {
+      const qNum = idx + 1;
+      const found = extractedAnswers.find((a: any) => a.qNum === qNum);
+      const studentLetter = found ? found.selected.toUpperCase() : "BRANCO";
+      const correctLetter = q.correctAnswer.toUpperCase();
       
       const isCorrect = studentLetter === correctLetter;
-      const points = isCorrect ? question.points : 0;
-      
-      totalScore += points;
+      if (isCorrect) totalScore += q.points;
 
       return {
-        questionId: question.id,
-        questionNumber: index + 1,
+        questionIndex: qNum,
         correctLetter,
         studentLetter,
-        isCorrect,
-        points
+        isCorrect
       };
     });
 
     return {
-      studentName: extraction.studentName || "Aluno Não Identificado",
+      studentName: data.studentName || "Aluno Desconhecido",
       totalScore,
       maxScore,
       matches
     };
 
   } catch (error) {
-    console.error("Erro completo na leitura óptica:", error);
-    throw error;
+    console.error("Erro na correção:", error);
+    throw new Error("Falha ao processar a imagem. Certifique-se que a foto está nítida e focada no gabarito.");
   }
 };
