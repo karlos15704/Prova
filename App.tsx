@@ -6,9 +6,12 @@ import { Exam, QuestionType } from './types';
 import { PenTool, Layout, FileCheck, Eye, Database, Trash2, PlusCircle, ScanLine } from 'lucide-react';
 import { saveExamToStorage, getExamsFromStorage, deleteExamFromStorage } from './services/storageService';
 
+// Safe ID generator compatible with all environments
+const generateId = () => Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+
 // Empty template
 const getNewExamTemplate = (): Exam => ({
-  id: crypto.randomUUID(),
+  id: generateId(),
   title: 'Nova Prova',
   createdAt: Date.now(),
   header: {

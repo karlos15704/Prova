@@ -2,6 +2,9 @@ import React, { useState, useRef } from 'react';
 import { Plus, Trash2, Save, ImageIcon, X, GripVertical, Upload } from 'lucide-react';
 import { Exam, Question, QuestionType } from '../types';
 
+// Safe ID generator
+const generateId = () => Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+
 interface ExamBuilderProps {
   currentExam: Exam;
   onUpdateExam: (exam: Exam) => void;
@@ -16,7 +19,7 @@ export const ExamBuilder: React.FC<ExamBuilderProps> = ({ currentExam, onUpdateE
 
   const addQuestion = () => {
     const newQuestion: Question = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       text: '',
       imageUrl: undefined,
       type: QuestionType.MULTIPLE_CHOICE,
