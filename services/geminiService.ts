@@ -13,15 +13,23 @@ export const gradeScantron = async (
   const questionCount = exam.questions.length;
 
   const systemPrompt = `
-    ATENÇÃO: Você é um sistema de Leitura Óptica (OMR).
-    Sua única função é extrair letras marcadas em uma folha de gabarito (scantron).
+    VOCÊ É UM CORRETOR DE GABARITOS (OMR).
+    Sua tarefa é analisar a imagem de uma Folha de Respostas e identificar quais letras foram marcadas.
+
+    INSTRUÇÕES VISUAIS:
+    1. Procure pela grade de respostas numerada de 1 a ${questionCount}.
+    2. Para cada número, verifique as opções (A, B, C, D...).
+    3. Uma opção é considerada "MARCADA" se a bolinha estiver totalmente preenchida (pintada) ou marcada com um X forte.
+    4. Se a bolinha estiver vazia ou apenas com um ponto pequeno, é "NÃO MARCADA".
     
-    1. Analise a imagem. Busque por um cabeçalho com nome do aluno (pode ser manuscrito).
-    2. Busque por uma grade de respostas numerada de 1 até ${questionCount}.
-    3. Para cada número, identifique qual bolinha/letra foi preenchida ou marcada com X.
-    4. Se houver rasura ou marcação dupla, marque como "ANULADA".
-    5. Se não houver marcação, marque como "BRANCO".
-    6. Retorne APENAS o JSON com os dados extraídos.
+    REGRAS DE EXTRAÇÃO:
+    - Retorne a letra selecionada para cada questão.
+    - Se houver duas marcações na mesma linha: retorne "ANULADA".
+    - Se não houver marcação: retorne "BRANCO".
+    - Tente identificar o nome do aluno no cabeçalho (escrito à mão ou impresso).
+    
+    FORMATO DE RESPOSTA:
+    Retorne APENAS um objeto JSON válido. Não use blocos de código markdown (\`\`\`json).
   `;
 
   try {
@@ -36,7 +44,7 @@ export const gradeScantron = async (
             }
           },
           {
-            text: `Extraia as respostas das questões 1 a ${questionCount}.`
+            text: `Analise esta folha de respostas. Existem ${questionCount} questões. Identifique a alternativa correta para cada uma.`
           }
         ]
       },
@@ -46,15 +54,15 @@ export const gradeScantron = async (
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            studentName: { type: Type.STRING, description: "Nome identificado no topo da folha" },
+            studentName: { type: Type.STRING, description: "Nome do aluno identificado" },
             answers: {
               type: Type.ARRAY,
-              description: "Lista das respostas lidas",
+              description: "Lista de respostas",
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  questionIndex: { type: Type.INTEGER, description: "O número da questão (1, 2, 3...)" },
-                  selectedLetter: { type: Type.STRING, description: "A letra identificada (A, B, C...) ou ANULADA/BRANCO" }
+                  questionIndex: { type: Type.INTEGER, description: "Número da questão" },
+                  selectedLetter: { type: Type.STRING, description: "Letra marcada (A, B, C, D, ANULADA, BRANCO)" }
                 }
               }
             }
@@ -64,12 +72,26 @@ export const gradeScantron = async (
     });
 
     if (!response.text) {
-      throw new Error("Falha na leitura óptica.");
+      throw new Error("A IA não retornou nenhum texto.");
     }
 
-    const extraction = JSON.parse(response.text) as ScantronResult;
+    // SANITIZATION: Remove markdown code blocks if present (Common cause of JSON parse errors)
+    let cleanJson = response.text.trim();
+    if (cleanJson.startsWith('```json')) {
+      cleanJson = cleanJson.replace(/^```json/, '').replace(/```$/, '');
+    } else if (cleanJson.startsWith('```')) {
+      cleanJson = cleanJson.replace(/^```/, '').replace(/```$/, '');
+    }
 
-    // Now perform the deterministic grading locally (Math, not AI)
+    let extraction: ScantronResult;
+    try {
+        extraction = JSON.parse(cleanJson) as ScantronResult;
+    } catch (e) {
+        console.error("Erro ao fazer parse do JSON bruto:", cleanJson);
+        throw new Error("Falha ao processar os dados retornados pela IA.");
+    }
+
+    // Now perform the deterministic grading locally
     let totalScore = 0;
     const maxScore = exam.questions.reduce((sum, q) => sum + q.points, 0);
 
@@ -102,7 +124,7 @@ export const gradeScantron = async (
     };
 
   } catch (error) {
-    console.error("Erro na leitura óptica:", error);
+    console.error("Erro completo na leitura óptica:", error);
     throw error;
   }
 };

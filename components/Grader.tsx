@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Loader2, CheckCircle, AlertCircle, FileCheck, Camera, ScanLine } from 'lucide-react';
+import { Loader2, CheckCircle, AlertCircle, FileCheck, Camera, ScanLine, Info } from 'lucide-react';
 import { Exam, GradingResult } from '../types';
 import { gradeScantron } from '../services/geminiService';
 import { getExamsFromStorage } from '../services/storageService';
@@ -43,7 +43,7 @@ export const Grader: React.FC = () => {
       const gradingResult = await gradeScantron(selectedExam, base64Data);
       setResult(gradingResult);
     } catch (err) {
-      setError("Não foi possível ler o gabarito. Verifique se a foto está focada e bem iluminada.");
+      setError("Não foi possível ler o gabarito. Tente aproximar a câmera apenas da área das bolinhas e certifique-se que a imagem está nítida.");
       console.error(err);
     } finally {
       setIsGrading(false);
@@ -96,7 +96,8 @@ export const Grader: React.FC = () => {
                             <div className="bg-white p-3 rounded-full shadow-sm inline-block mb-3">
                                 <Camera className="w-8 h-8 text-accent" />
                             </div>
-                            <p className="text-sm font-medium text-slate-700">Foto da Folha de Respostas</p>
+                            <p className="text-sm font-medium text-slate-700">Clique para enviar foto</p>
+                            <p className="text-xs text-slate-400 mt-1">Fotografe a Folha de Respostas (Última Página)</p>
                             </div>
                         )}
                         <input 
@@ -106,6 +107,11 @@ export const Grader: React.FC = () => {
                             className="hidden" 
                             accept="image/*" 
                         />
+                    </div>
+
+                    <div className="mt-2 bg-blue-50 p-3 rounded-lg text-xs text-blue-800 flex gap-2">
+                        <Info size={16} className="flex-shrink-0" />
+                        <p>Dica: Fotografe o quadro de respostas de frente, com boa iluminação. Evite sombras sobre as bolinhas.</p>
                     </div>
 
                     <button
@@ -141,7 +147,7 @@ export const Grader: React.FC = () => {
                 {!result && !isGrading && (
                     <div className="h-full flex flex-col items-center justify-center text-slate-400 text-center">
                     <ScanLine size={48} className="mb-4 opacity-20" />
-                    <p>O sistema identificará as letras marcadas e calculará a nota.</p>
+                    <p>O resultado da correção aparecerá aqui.</p>
                     </div>
                 )}
                 
