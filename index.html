@@ -6,9 +6,10 @@
     <title>ProfCorrector AI</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-      // Polyfill for process.env to prevent crashes in browser environments
+      // Polyfill for process.env
       window.process = window.process || { env: {} };
       
+      // Tailwind config
       tailwind.config = {
         theme: {
           extend: {
@@ -37,46 +38,59 @@
         }
       }
     </style>
-  <script type="importmap">
+    <!-- Robust Import Map using ?dev for better compatibility in this environment -->
+    <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@18.2.0",
-    "react/": "https://esm.sh/react@18.2.0/",
-    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-    "react-dom": "https://esm.sh/react-dom@18.2.0",
-    "react-dom/": "https://esm.sh/react-dom@18.2.0/",
-    "lucide-react": "https://esm.sh/lucide-react@0.344.0",
-    "@google/genai": "https://esm.sh/@google/genai@0.2.1"
+    "react": "https://esm.sh/react@18.2.0?dev",
+    "react/jsx-runtime": "https://esm.sh/react@18.2.0/jsx-runtime?dev",
+    "react-dom": "https://esm.sh/react-dom@18.2.0?dev",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client?dev",
+    "lucide-react": "https://esm.sh/lucide-react@0.344.0?dev",
+    "@google/genai": "https://esm.sh/@google/genai@0.2.1",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/"
   }
 }
 </script>
-</head>
+  </head>
   <body class="bg-gray-50 text-slate-900 font-sans antialiased">
     <div id="root" class="flex items-center justify-center h-screen text-slate-500">
-        <div class="text-center">
-            <svg class="animate-spin h-8 w-8 text-blue-600 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <div id="loading-spinner" class="text-center">
+            <svg class="animate-spin h-10 w-10 text-blue-600 mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <p>Carregando ProfCorrector...</p>
+            <p class="text-lg font-medium">Carregando ProfCorrector...</p>
         </div>
     </div>
-    <script type="module" src="./index.tsx"></script>
+
+    <!-- Error Handler Script -->
     <script>
-      window.onerror = function(message, source, lineno, colno, error) {
-        console.error("Erro Global:", error);
-        // Only show alert if it's not a harmless resize observer error
-        if (!message.includes('ResizeObserver')) {
-            const root = document.getElementById('root');
-            if (root) {
-                root.innerHTML = `<div style="color:red; padding:20px; text-align:center;">
-                    <h3>Erro ao carregar aplicação</h3>
-                    <p>${message}</p>
-                    <p style="font-size:12px; color:#666;">Verifique o console para mais detalhes.</p>
-                </div>`;
-            }
+      window.addEventListener('error', function(event) {
+        const root = document.getElementById('root');
+        const spinner = document.getElementById('loading-spinner');
+        if (spinner) spinner.style.display = 'none';
+        
+        if (root) {
+            // Check if it's a ResizeObserver loop limit exceeded error, which is harmless
+            if (event.message && event.message.includes('ResizeObserver')) return;
+
+            root.innerHTML = `
+                <div style="padding: 2rem; max-width: 600px; margin: 0 auto; text-align: center; color: #ef4444;">
+                    <h2 style="font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem;">Erro ao Carregar Aplicação</h2>
+                    <p style="margin-bottom: 1rem;">Ocorreu um erro ao iniciar o sistema.</p>
+                    <div style="background: #fee2e2; padding: 1rem; border-radius: 0.5rem; font-family: monospace; text-align: left; overflow: auto;">
+                        ${event.message}
+                    </div>
+                    <p style="margin-top: 1rem; font-size: 0.875rem; color: #64748b;">Tente recarregar a página.</p>
+                </div>
+            `;
         }
-      };
+        console.error("App Crash:", event.error);
+      });
     </script>
+
+    <script type="module" src="./index.tsx"></script>
   </body>
 </html>
